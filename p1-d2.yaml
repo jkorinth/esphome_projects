@@ -1,0 +1,112 @@
+substitutions:
+  device_name: p1-d2
+  pulse_pin: GPIO12
+  pulse_rate: '10000' # imp/kWh
+  # this means: 1 pulse = 1/10000 kWh = 0.1 Wh
+
+esphome:
+  name: '${device_name}'
+
+esp32:
+  board: esp32dev
+  framework:
+    type: arduino
+
+# Enable logging
+logger:
+
+# Enable Home Assistant API
+api:
+  password: ""
+
+ota:
+  password: ""
+
+wifi:
+  id: currwifi
+  ssid: "yavin"
+  password: "4biggs 4Resort silk9 ago"
+
+  # Enable fallback hotspot (captive portal) in case wifi connection fails
+  ap:
+    ssid: "P1-D2 Fallback Hotspot"
+    password: "vAkF8PF6nPYq"
+
+captive_portal:
+
+sensor:
+  - platform: pulse_meter
+    pin: ${pulse_pin}
+    id: p1_d2_house_power
+    name: "${device_name} - House Power"
+    unit_of_measurement: W
+    accuracy_decimals: 0
+    internal_filter: 3us
+    filters:
+      - multiply: 6.0
+#    total:
+#      id: p1_d2_house_energy
+#      name: "${device_name} - House Energy"
+#      unit_of_measurement: 'kWh'
+#      filters:
+#        - multiply: 0.00000001
+
+#  - platform: pulse_meter
+#    name: '${device_name}'
+#    id: total_energy_pulse_meter
+#    unit_of_measurement: W
+#    device_class: power
+#    icon: mdi:flash-outline
+#    accuracy_decimals: 0
+#    pin: ${pulse_pin}
+#    filters:
+#      - lambda: return x * ((60.0 / ${pulse_rate}) * 1000.0);
+#    total:
+#      name: '${device_name} - Total Energy'
+#      id: sensor_total_energy
+#      unit_of_measurement: 'kWh'
+#      icon: mdi:circle-slice-3
+#      state_class: total_increasing
+#      device_class: energy
+#      accuracy_decimals: 3
+#      filters:
+#        - lambda: return x * (1.0 / ${pulse_rate});
+
+#time:
+#  - platform: homeassistant
+#    id: homeassistant_time
+
+#graph:
+#  - id: test_graph
+#    duration: 128s
+#    width: 128
+#    height: 100
+#    border: False
+#    traces:
+#      - sensor: test_number_sensor
+#        line_thickness: 1
+
+font:
+  - file: "gfonts://Ubuntu+Mono"
+    id: m9
+    size: 9
+  - file: "gfonts://Ubuntu+Mono"
+    id: m12
+    size: 12
+
+i2c:
+  scl: GPIO4
+  sda: GPIO5
+
+display:
+  - platform: ssd1306_i2c
+    id: disp
+    model: "SSD1306 128x64"
+    reset_pin: GPIO16
+    address: 0x3c
+    lambda: |-
+      it.filled_rectangle(0, 0, it.get_width(), 12);
+      it.print(it.get_width() / 2, 10, id(m12), COLOR_OFF, TextAlign::BASELINE_CENTER, "${device_name}");
+      it.printf(4, 30, id(m9), "power : %3.0f kW", id(p1_d2_house_power).state);
+      
+#it.printf(4, 40, id(m9), "energy: %10.0f kWh", id(p1_d2_house_energy).state);

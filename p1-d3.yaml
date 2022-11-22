@@ -1,0 +1,178 @@
+substitutions:
+  device_name: p1-d3
+  pulse_pin: GPIO12
+  pulse_rate: '10000' # imp/kWh
+  # this means: 1 pulse = 1/10000 kWh = 0.1 Wh
+
+esphome:
+  name: '${device_name}'
+
+esp32:
+  board: esp32dev
+  framework:
+    type: arduino
+
+# Enable logging
+logger:
+
+# Enable Home Assistant API
+api:
+  password: ""
+
+ota:
+  password: ""
+
+wifi:
+  id: currwifi
+  ssid: "yavin"
+  password: "4biggs 4Resort silk9 ago"
+
+  # Enable fallback hotspot (captive portal) in case wifi connection fails
+  ap:
+    ssid: "P1-D2 Fallback Hotspot"
+    password: "vAkF8PF6nPYq"
+
+captive_portal:
+
+number:
+  - platform: template
+    id: total_kwh
+    name: "${device_name} - Counter Start"
+    icon: mdi:counter
+    unit_of_measurement: kWh
+    restore_value: true
+    initial_value: 0
+    min_value: 0
+    step: 1
+    max_value: 1000000
+    optimistic: true
+    on_value:
+      then:
+        - pulse_counter.set_total_pulses:
+            id: p1_d3_s0
+            value: 0
+
+#  - platform: template
+#    id: kwh_pulses
+#    name: "${device_name} - Pulses since Update"
+#    unit_of_measurement: pulses
+#    initial_value: 0
+#    min_value: 0
+#    step: 1
+#    max_value: 20000
+#    optimistic: true
+#    on_value_range:
+#      above: 10000
+#      then:
+#        - number.increment:
+#            id: total_kwh
+#        - number.set:
+#            id: kwh_pulses
+#            value: 0
+
+#binary_sensor:
+#  - platform: gpio
+#    id: raw_pulses
+#    name: "${device_name} - Raw Pulses"
+#    pin:
+#      number: ${pulse_pin}
+#    on_press:
+#      number.increment:
+#        id: kwh_pulses
+
+sensor:
+  - platform: wifi_signal
+    id: wifi_strength
+    name: "${device_name} - Wifi Strength Sensor"
+    update_interval: 1s
+    filters:
+      - throttle_average: 10s
+  
+  - platform: pulse_counter
+    pin: ${pulse_pin}
+    id: p1_d3_s0
+    name: "${device_name} - S0 pulses"
+    use_pcnt: False
+    internal_filter: 100ms
+    total:
+      id: p1_d3_energy_total
+      name: "${device_name} - Energy (total)"
+      unit_of_measurement: kWh
+      accuracy_decimals: 4
+      filters:
+        - multiply: 0.0001
+        - lambda: |-
+            return id(total_kwh).state + x;
+  
+  - platform: template
+    id: p1_d3_s0_i
+    name: "${device_name} - Power"
+    icon: mdi:flash-outline
+    unit_of_measurement: W
+    accuracy_decimals: 0
+    lambda: |-
+      return id(p1_d3_s0).state * 6.0f;
+
+#  - platform: pulse_meter
+#    pin: ${pulse_pin}
+#    id: p1_d3_house_power
+#    name: "${device_name} - House Power"
+#    unit_of_measurement: W
+#    accuracy_decimals: 0
+#    internal_filter: 3ms
+#    filters:
+#      - multiply: 6.0
+#      - throttle_average: 10s
+#    total:
+#      id: p1_d3_house_energy
+#      name: "${device_name} - House Energy"
+#      unit_of_measurement: 'kWh'
+
+button:
+  - platform: template
+    name: "${device_name} - Reset total pulse count"
+    on_press:
+      then:
+        - logger.log: Reset button pressed!
+        - pulse_counter.set_total_pulses:
+            id: p1_d3_s0
+            value: 0
+
+graph:
+  - id: power_graph
+    duration: 60min
+    width: 128
+    height: 24
+    border: True
+    traces:
+      - sensor: p1_d3_s0_i
+        line_thickness: 1
+
+font:
+  - file: "gfonts://Ubuntu+Mono"
+    id: m9
+    size: 10
+  - file: "gfonts://Ubuntu+Mono"
+    id: m12
+    size: 12
+
+i2c:
+  scl: GPIO4
+  sda: GPIO5
+
+display:
+  - platform: ssd1306_i2c
+    id: disp
+    model: "SSD1306 128x64"
+    reset_pin: GPIO16
+    address: 0x3c
+    lambda: |-
+      it.filled_circle(12, 5, 6);
+      it.filled_circle(it.get_width() - 12 - 1, 5, 6);
+      it.filled_rectangle(12, 0, it.get_width() - 2 * 12, 12);
+      it.print(it.get_width() / 2, 10, id(m12), COLOR_OFF, TextAlign::BASELINE_CENTER, "${device_name}");
+      it.print(12, 16, id(m9), "wifi");
+      it.printf(it.get_width() - 12, 16, id(m9), COLOR_ON, TextAlign::TOP_RIGHT, "%2.0f dBm", id(wifi_strength).state);
+      it.print(12, 26, id(m9), "power");
+      it.printf(it.get_width() - 12, 26, id(m9), COLOR_ON, TextAlign::TOP_RIGHT, "%6.0f W", id(p1_d3_s0_i).state);
+      it.graph(0, 40, id(power_graph));
